@@ -1,70 +1,44 @@
-const uuid = require('uuid');
+'use strict';
 
-// This module provides volatile storage, using a `BlogPost`
-// model. We haven't learned about databases yet, so for now
-// we're using in-memory storage. This means each time the app stops, our storage
-// gets erased.
+const mongoose = require('mongoose');
 
-// Don't worry too much about how BlogPost is implemented.
-// Our concern in this example is with how the API layer
-// is implemented, and getting it to use an existing model.
+// this is our schema to represent a blog post
+const blogPostSchema = mongoose.Schema({
+    title: { type: String, required: true }, 
+    content: { type: String, required: true },
+    author: {
+        firstName: String,
+        lastName: String
+        },
+    created: { type: Date, default: Date.now}
+});
+
+// *virtuals* (http://mongoosejs.com/docs/guide.html#virtuals)
+// allow us to define properties on our object that manipulate
+// properties that are stored in the database. Here we use it
+// to generate a human readable string based on the author object
+// we're storing in Mongo.
+blogPostSchema.virtual('authorName').get(function () {
+    return `${this.author.firstName} ${this.author.lastName}`.trim()
+});
 
 
-function StorageException(message) {
-    this.message = message;
-    this.name = "StorageException";
+// this is an *instance method* which will be available on all instances
+// of the model. This method will be used to return an object that only
+// exposes *some* of the fields we want from the underlying data
+blogPostSchema.methods.serialize = function () {
+
+    return {
+        id: this._id,
+        author: this.authorName,
+        content: this.content,
+        title: this.title, 
+        created: this.created
+    };
 }
 
-const BlogPosts = {
-    create: function (title, content, author, publishdate) {
-        const post = {
-            id: uuid.v4(),
-            title: title,
-            content: content,
-            author: author,
-            publishdate: publishdate || Date.now()
-        };
-        this.posts.push(post);
-        return post;
-    },
-    get: function (id = null) {
-        // if id passed in, retrieve single post,
-        // otherwise send all posts.
-        if (id !== null) {
-            return this.posts.find(post => post.id === id);
-        }
-        // return posts sorted (descending) by
-        // publish date
-        return this.posts.sort(function (a, b) {
-            return b.publishdate - a.publishdate
-        });
-    },
-    delete: function (id) {
-        const postIndex = this.posts.findIndex(
-            post => post.id === id);
-        if (postIndex > -1) {
-            this.posts.splice(postIndex, 1);
-        }
-    },
-    update: function (updatedPost) {
-        const { id } = updatedPost;
-        const postIndex = this.posts.findIndex(
-            post => post.id === updatedPost.id);
-        if (postIndex === -1) {
-            throw new StorageException(
-                `Can't update item \`${id}\` because doesn't exist.`)
-        }
-        this.posts[postIndex] = Object.assign(
-            this.posts[postIndex], updatedPost);
-        return this.posts[postIndex];
-    }
-};
+// note that all instance methods and virtual properties on our
+// schema must be defined *before* we make the call to `.model`.
+const BlogPost = mongoose.model('BlogPost', blogPostSchema);
 
-function createBlogPostsModel() {
-    const storage = Object.create(BlogPosts);
-    storage.posts = [];
-    return storage;
-}
-
-
-module.exports = { BlogPosts: createBlogPostsModel() };
+module.exports = { BlogPost };
